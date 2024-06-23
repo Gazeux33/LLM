@@ -3,6 +3,13 @@ from torch import nn
 from torch.nn import functional as F
 from tqdm import tqdm
 
+device = "cpu"
+if torch.cuda.is_available():
+    device = "cuda"
+#elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+#device = "mps"
+print(f"using device:{device}")
+
 DATA_PATH = "data/tinyshakespeare.txt"
 iter = 5000
 block_size = 256
@@ -37,8 +44,8 @@ test_data = data[n:]
 
 def get_batch(data):
     ix = torch.randint(len(data) - block_size, (batch_size,))
-    x = torch.stack([data[i:i + block_size] for i in ix])
-    y = torch.stack([data[i + 1:i + block_size + 1] for i in ix])
+    x = torch.stack([data[i:i + block_size] for i in ix]).to(device)
+    y = torch.stack([data[i + 1:i + block_size + 1] for i in ix]).to(device)
     return x, y
 
 
@@ -103,9 +110,9 @@ class FeedForward(nn.Module):
         # feed forward multiplied by 4
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(n_emb, n_emb*4),
+            nn.Linear(n_emb, n_emb * 4),
             nn.ReLU(),
-            nn.Linear(n_emb*4, n_emb),
+            nn.Linear(n_emb * 4, n_emb),
             nn.Dropout(dropout),
         )
 
@@ -127,7 +134,7 @@ class BigramLanguageModel(nn.Module):
         B, T = idx.shape
         # idx , targets are (B,T)
         tok_emb = self.token_embedding(idx)  # (batch,token,channels)
-        pos_emb = self.position_embedding(torch.arange(T))  # (T,C)
+        pos_emb = self.position_embedding(torch.arange(T, device=device))  # (T,C)
 
         x = tok_emb + pos_emb  # (B,T,C) =  broadcasting
         x = self.blocks(x)
@@ -155,6 +162,7 @@ class BigramLanguageModel(nn.Module):
 
 
 m = BigramLanguageModel()
+m.to(device)
 opt = torch.optim.AdamW(m.parameters(), lr=lr)
 
 for step in tqdm(range(iter)):
