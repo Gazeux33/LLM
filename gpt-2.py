@@ -5,6 +5,10 @@ from torch import nn
 from torch.nn import functional as F
 import tiktoken
 import sys
+import time
+
+device = "cpu"
+B, T = 16, 32
 
 
 @dataclass
@@ -14,6 +18,34 @@ class GPTConfig:
     n_layer: int = 12
     n_head: int = 12
     n_embd: int = 768
+
+
+class DataLoaderLite:
+    def __init__(self, B, T):
+        self.B = B
+        self.T = T
+
+        with open('data/tinyshakespeare.txt', "r") as f:
+            text = f.read()
+        enc = tiktoken.get_encoding('gpt2')
+        tokens = enc.encode(text)
+        self.tokens = torch.tensor(tokens)
+
+        self.current_position = 0
+
+        print(f"for 1 epochs:{len(self.tokens)}    {len(self.tokens) // (B * T)} batches")
+
+    def next_batch(self):
+        B, T = self.B, self.T
+        buf = self.tokens[self.current_position: self.current_position + B * T + 1]
+        x = (buf[:-1]).view(B, T)  # inputs
+        y = (buf[1:]).view(B, T)  # targets
+
+        self.current_position += B * T
+
+        if self.current_position + (B * T + 1) > len(self.tokens):
+            self.current_position = 0
+        return x, y
 
 
 class CasualSelfAttention(nn.Module):
@@ -91,7 +123,22 @@ class GPT(nn.Module):
         ))
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
 
-    def forward(self, idx):
+        # weight sharing
+        self.transformer.wte.weight = self.lm_head.weight
+
+        # init parms
+        self.apply(self._init_weights)
+
+    @staticmethod
+    def _init_weights(module):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+
+    def forward(self, idx, target=None):
         B, T = idx.size()
 
         pos = torch.arange(0, T, dtype=torch.long, device=idx.device)  # (T)
@@ -105,7 +152,10 @@ class GPT(nn.Module):
 
         x = self.transformer.ln_f(x)
         logits = self.lm_head(x)  # (B, T, vocab_size)
-        return logits
+        loss = None
+        if target is not None:
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), target.view(-1))  # (B*T,vocab_size) vs (B*T)
+        return logits, loss
 
     @classmethod
     def from_pretrained(cls, model_type):
@@ -157,24 +207,17 @@ class GPT(nn.Module):
         return model
 
 
-device = "cpu"
-if torch.cuda.is_available():
-    device = "cuda"
-#elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-#device = "mps"
-print(f"using device:{device}")
+# enc = tiktoken.get_encoding('gpt2')
+# with open("data/tinyshakespeare.txt", "r") as f:
+# text = f.read()
+# text = text[:1000]
+# tokens = enc.encode(text)
 
-enc = tiktoken.get_encoding('gpt2')
-with open("data/tinyshakespeare.txt", "r") as f:
-    text = f.read()
-text = text[:1000]
-tokens = enc.encode(text)
-B, T = 4, 32
 
-buf = torch.tensor(tokens[:B * T + 1])
+# buf = torch.tensor(tokens[:B * T + 1])
 
-x = buf[:-1].view(B, T).to(device)
-y = buf[1:].view(B, T).to(device)
+# x = buf[:-1].view(B, T).to(device)
+# y = buf[1:].view(B, T).to(device)
 
 num_return_sequences = 5
 max_length = 30
@@ -184,11 +227,26 @@ config = GPTConfig()
 model = GPT(config)
 model.eval()
 model.to(device)
-logits = model(x)
 
-print(logits.shape)
+# logits, loss = model(x,y)
+# print(logits.shape)
+# print(f"loss:{loss}")
 
+optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
+train_loader = DataLoaderLite(B, T)
 
+for i in range(50):
+    t0 = time.time()
+    optimizer.zero_grad()
+    x, y = train_loader.next_batch()
+
+    with torch.autocast(device_type=device, dtype=torch.bfloat16):
+        logits, loss = model(x, y)
+    loss.backward()
+    optimizer.step()
+    t1 = time.time()
+    dt = (t1 - t0) * 1000
+    print(f"step:{i}  loss:{loss}   ms:{dt}")
 
 sys.exit(0)
 
