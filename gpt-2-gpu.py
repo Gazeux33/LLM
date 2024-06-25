@@ -229,15 +229,35 @@ max_length = 30
 B, T = 4, 8
 
 # model = GPT.from_pretrained("gpt2")
-model = GPT(GPTConfig())
+model = GPT(GPTConfig(vocab_size=50304))
 model.to(device)
 model = torch.compile(model)
 
 torch.set_float32_matmul_precision('high')
-optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
+optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, betas=(0.9, 0.95), eps=1e-8)
 train_loader = DataLoaderLite(B, T)
 
-for i in range(50):
+max_lr = 6e-4
+min_lr = max_lr * 0.1
+warmup_steps = 10
+max_steps = 50
+
+
+def get_lr(it):
+    # 1) linear warmup for warmup_iters steps
+    if it < warmup_steps:
+        return max_lr * (it + 1) / warmup_steps
+    # 2) if it > lr_decay_iters, return min learning rate
+    if it > max_steps:
+        return min_lr
+    # 3) in between, use cosine decay down to min learning rate
+    decay_ratio = (it - warmup_steps) / (max_steps - warmup_steps)
+    assert 0 <= decay_ratio <= 1
+    coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))  # coeff starts at 1 and goes to 0
+    return min_lr + coeff * (max_lr - min_lr)
+
+
+for step in range(50):
     t0 = time.time()
     optimizer.zero_grad()
     x, y = train_loader.next_batch()
@@ -245,10 +265,14 @@ for i in range(50):
     with torch.autocast(device_type=device, dtype=torch.bfloat16):
         logits, loss = model(x, y)
     loss.backward()
+    norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+    lr = get_lr(step)
+    for param_group in optimizer.param_groups:
+        param_group["lr"] = lr
     optimizer.step()
     t1 = time.time()
     dt = (t1 - t0) * 1000
-    print(f"step:{i}  loss:{loss}   ms:{dt}")
+    print(f"step:{step}  loss:{loss.item():.6f}  norm:{norm:.4f} lr:{lr:.4f} ms:{dt}")
 
 """
 tokens = enc.encode("hello")
