@@ -5,11 +5,11 @@ from utils import get_tokens_paths
 
 
 class DataLoader:
-    def __init__(self, B: int, T: int, split: str):
+    def __init__(self, B: int, T: int, split: str, tokens_dir: str):
         self.tokens = None
         self.current_position = None
         self.current_file_index = None
-        self.data_files = get_tokens_paths()
+        self.data_files = get_tokens_paths(tokens_dir)
         print(self.data_files)
         self.B = B
         self.T = T

@@ -10,7 +10,7 @@ if torch.cuda.is_available():
 #device = "mps"
 print(f"using device:{device}")
 
-DATA_PATH = "data/tinyshakespeare.txt"
+DATA_PATH = "../data/tinyshakespeare.txt"
 iter = 5000
 block_size = 256
 batch_size = 64
