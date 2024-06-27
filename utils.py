@@ -9,4 +9,4 @@ def get_tokenizer() -> Tokenizer:
 
 
 def get_tokens_paths() -> list[str]:
-    return sorted([f for f in (os.listdir(TOKENS_DIRECTORY)) if f.endswith(".npy")])
+    return sorted([os.path.join(TOKENS_DIRECTORY,f) for f in (os.listdir(TOKENS_DIRECTORY)) if f.endswith(".npy")])
