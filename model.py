@@ -9,12 +9,12 @@ class CasualSelfAttention(nn.Module):
 
     def __init__(self):
         super().__init__()
-        assert config.n_embd % config.n_head == 0
-        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd)
-        self.c_proj = nn.Linear(config.n_embd, config.n_embd)
+        assert config.N_EMBD % config.N_HEAD == 0
+        self.c_attn = nn.Linear(config.N_EMBD, 3 * config.N_EMBD)
+        self.c_proj = nn.Linear(config.N_EMBD, config.N_EMBD)
 
-        self.n_head = config.n_head
-        self.n_embd = config.n_embd
+        self.n_head = config.N_HEAD
+        self.n_embd = config.N_EMBD
 
         self.biais = torch.tril(torch.ones(config.block_size, config.block_size)).view(1, 1, config.block_size,
                                                                                        config.block_size)
@@ -37,9 +37,9 @@ class CasualSelfAttention(nn.Module):
 class MLP(nn.Module):
     def __init__(self):
         super().__init__()
-        self.c_fc = nn.Linear(config.n_embd, config.n_embd * 4)
+        self.c_fc = nn.Linear(config.N_EMBD, config.N_EMBD * 4)
         self.gelu = nn.GELU(approximate="tanh")
-        self.c_proj = nn.Linear(config.n_embd * 4, config.n_embd)
+        self.c_proj = nn.Linear(config.N_EMBD * 4, config.N_EMBD)
 
     def forward(self, x):
         x = self.c_fc(x)
@@ -51,9 +51,9 @@ class MLP(nn.Module):
 class Block(nn.Module):
     def __init__(self):
         super().__init__()
-        self.ln_1 = nn.LayerNorm(config.n_embd)
+        self.ln_1 = nn.LayerNorm(config.N_EMBD)
         self.attn = CasualSelfAttention()
-        self.ln_2 = nn.LayerNorm(config.n_embd)
+        self.ln_2 = nn.LayerNorm(config.N_EMBD)
         self.mlp = MLP()
 
     def forward(self, x):
@@ -61,18 +61,19 @@ class Block(nn.Module):
         x = x + self.mlp(self.ln_2(x))
         return x
 
+
 class GPT(nn.Module):
     def __init__(self):
         super().__init__()
         self.config = config
 
         self.transformer = nn.ModuleDict(dict(
-            wte=nn.Embedding(config.vocab_size, config.n_embd),
-            wpe=nn.Embedding(config.block_size, config.n_embd),
-            h=nn.ModuleList([Block() for _ in range(config.n_block)]),
-            ln_f=nn.LayerNorm(config.n_embd)
+            wte=nn.Embedding(config.VOCAB_SIZE, config.N_EMBD),
+            wpe=nn.Embedding(config.block_size, config.N_EMBD),
+            h=nn.ModuleList([Block() for _ in range(config.N_BLOCK)]),
+            ln_f=nn.LayerNorm(config.N_EMBD)
         ))
-        self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
+        self.lm_head = nn.Linear(config.N_EMBD, config.VOCAB_SIZE, bias=False)
 
         # weight sharing
         self.transformer.wte.weight = self.lm_head.weight
@@ -107,3 +108,10 @@ class GPT(nn.Module):
         if target is not None:
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), target.view(-1))  # (B*T,vocab_size) vs (B*T)
         return logits, loss
+
+    @staticmethod
+    def accuracy(logits, targets):
+        _, predictions = torch.max(logits, dim=-1)
+        correct_predictions = (predictions == targets).float()
+        accuracy = correct_predictions.sum() / targets.numel()
+        return accuracy

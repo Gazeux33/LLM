@@ -24,7 +24,7 @@ class DataLoaderLite:
         self.B = B
         self.T = T
 
-        with open('../data/tinyshakespeare.txt', "r") as f:
+        with open('tinyshakespeare.txt', "r") as f:
             text = f.read()
         enc = tiktoken.get_encoding('gpt2')
         tokens = enc.encode(text)
@@ -49,12 +49,12 @@ class CasualSelfAttention(nn.Module):
 
     def __init__(self, config):
         super().__init__()
-        assert config.n_embd % config.n_head == 0
-        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd)
-        self.c_proj = nn.Linear(config.n_embd, config.n_embd)
+        assert config.N_EMBD % config.N_HEAD == 0
+        self.c_attn = nn.Linear(config.N_EMBD, 3 * config.N_EMBD)
+        self.c_proj = nn.Linear(config.N_EMBD, config.N_EMBD)
 
-        self.n_head = config.n_head
-        self.n_embd = config.n_embd
+        self.n_head = config.N_HEAD
+        self.n_embd = config.N_EMBD
 
         self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
                              .view(1, 1, config.block_size, config.block_size))
@@ -80,9 +80,9 @@ class CasualSelfAttention(nn.Module):
 class MLP(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.c_fc = nn.Linear(config.n_embd, config.n_embd * 4)
+        self.c_fc = nn.Linear(config.N_EMBD, config.N_EMBD * 4)
         self.gelu = nn.GELU(approximate="tanh")
-        self.c_proj = nn.Linear(config.n_embd * 4, config.n_embd)
+        self.c_proj = nn.Linear(config.N_EMBD * 4, config.N_EMBD)
 
     def forward(self, x):
         x = self.c_fc(x)
@@ -94,9 +94,9 @@ class MLP(nn.Module):
 class Block(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.ln_1 = nn.LayerNorm(config.n_embd)
+        self.ln_1 = nn.LayerNorm(config.N_EMBD)
         self.attn = CasualSelfAttention(config)
-        self.ln_2 = nn.LayerNorm(config.n_embd)
+        self.ln_2 = nn.LayerNorm(config.N_EMBD)
         self.mlp = MLP(config)
 
     def forward(self, x):
@@ -111,12 +111,12 @@ class GPT(nn.Module):
         self.config = config
 
         self.transformer = nn.ModuleDict(dict(
-            wte=nn.Embedding(config.vocab_size, config.n_embd),
-            wpe=nn.Embedding(config.block_size, config.n_embd),
+            wte=nn.Embedding(config.VOCAB_SIZE, config.N_EMBD),
+            wpe=nn.Embedding(config.block_size, config.N_EMBD),
             h=nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
-            ln_f=nn.LayerNorm(config.n_embd)
+            ln_f=nn.LayerNorm(config.N_EMBD)
         ))
-        self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
+        self.lm_head = nn.Linear(config.N_EMBD, config.VOCAB_SIZE, bias=False)
 
         # weight sharing
         self.transformer.wte.weight = self.lm_head.weight

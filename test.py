@@ -1,11 +1,10 @@
 from Dataloader import DataLoader
-import numpy as np
+from config import *
 
-B,T,split = 8,16,""
+dl = DataLoader(batch_size, block_size, "", TOKENS_DIR)
 
-
-dl = DataLoader(B,T,split)
-
-#%%
-for i in range(10_000_000):
-    x,y = dl.next_batch()
+while dl:
+    data = dl.next_batch()
+    if data is not None:
+        x, y = data
+        print(x.shape)

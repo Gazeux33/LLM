@@ -21,12 +21,12 @@ def split_encoded_text(src_path: str, tokenizer: Tokenizer, tok_per_file: int) -
 
             if len(tokens_accumulated) >= tok_per_file:
                 tokens_to_save = tokens_accumulated[:tok_per_file]
-                save_npy_file(os.path.join(TOKENS_DIRECTORY, f"tokens_{file_index}.npy"), np.array(tokens_to_save))
+                save_npy_file(os.path.join(TOKENS_DIR, f"tokens_{file_index}.npy"), np.array(tokens_to_save))
                 tokens_accumulated = tokens_accumulated[tok_per_file:]
                 file_index += 1
 
     if tokens_accumulated:
-        save_npy_file(os.path.join(TOKENS_DIRECTORY, f"tokens_{file_index}.npy"), np.array(tokens_accumulated))
+        save_npy_file(os.path.join(TOKENS_DIR, f"tokens_{file_index}.npy"), np.array(tokens_accumulated))
 
 
 def save_npy_file(path: str, data) -> None:
