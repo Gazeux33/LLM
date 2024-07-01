@@ -8,8 +8,9 @@ from Dataloader import DataLoader
 from optimizer import AdamW
 
 
+# TO ADD : gradient accumulation, metrcis plus viables
 class Train:
-    def __init__(self, compile_model: bool = False, load_weights: bool = True):
+    def __init__(self, compile_model: bool = False, load: bool = True):
         self.train_dataloader = DataLoader(batch_size, block_size, "train", TOKENS_DIR, loop=False)
         self.test_dataloader = DataLoader(batch_size, block_size, "test", TOKENS_DIR, loop=True)
         self.metrics = Metrics()
@@ -17,7 +18,7 @@ class Train:
         self.model.to(DEVICE)
         self.step = 0
 
-        if load_weights:
+        if load:
             print("loading model....")
             self.model = utils.load_weights(self.model, "last.pth")
             self.metrics.load_metrics()
@@ -40,8 +41,12 @@ class Train:
                 self.optimizer.step()
                 self.step += 1
                 # print(loss.item())
-                self.metrics.update_metrics({'train_loss': round(loss.item(),2),
-                                             "step": self.metrics.current_state["step"] + 1},
+                self.metrics.update_metrics({'train_loss': round(loss.item(), 2),
+                                             "step": self.metrics.current_state["step"] + 1,
+                                             "tokens": self.metrics.current_state["tokens"] + (
+                                                     block_size * batch_size),
+                                             "epochs": i + 1},
+
                                             )
                 self.update()
                 self.print_state()
@@ -75,7 +80,8 @@ class Train:
         x_test, y_test = x_test.to(DEVICE), y_test.to(DEVICE)
         logits, loss_test = self.model(x_test, y_test)
         acc_test = self.model.accuracy(logits, y_test)
-        self.metrics.update_metrics({'test_loss': round(loss_test.item(), 2), 'test_accuracy': round(acc_test.item(),2)})
+        self.metrics.update_metrics(
+            {'test_loss': round(loss_test.item(), 2), 'test_accuracy': round(acc_test.item(), 2)})
 
 
 class Metrics:
@@ -97,10 +103,10 @@ class Metrics:
         }
 
     def update_metrics(self, metrics: dict) -> None:
-        # MODIFFFFFF
         for k, v in metrics.items():
-            if k in self.current_state and k in self.metrics_history:
+            if k in self.current_state:
                 self.current_state[k] = v
+            if k in self.metrics_history:
                 self.metrics_history[k].append(v)
 
     def save_metrcis(self) -> None:
@@ -119,5 +125,5 @@ class Metrics:
 
 
 if __name__ == "__main__":
-    trainer = Train(compile_model=False, load_weights=True)
+    trainer = Train(compile_model=False, load=True)
     trainer.train()

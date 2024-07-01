@@ -11,8 +11,8 @@ def get_tokenizer() -> Tokenizer:
     return Tokenizer.from_file(VOCAB_PATH)
 
 
-def get_tokens_paths(tokens_dir: str) -> list[str]:
-    return sorted([os.path.join(tokens_dir, f) for f in (os.listdir(tokens_dir)) if f.endswith(".npy")])
+def get_tokens_paths(tokens_dir: str, split: str) -> list[str]:
+    return sorted([os.path.join(tokens_dir, f) for f in (os.listdir(tokens_dir)) if f.endswith(".npy") and split in f])
 
 
 def get_vocab() -> dict:
